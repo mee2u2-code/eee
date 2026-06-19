@@ -160,7 +160,7 @@ const GLOBAL_STYLE = `
 function GlobalStyle() { return <style dangerouslySetInnerHTML={{ __html: GLOBAL_STYLE }} />; }
 
 const SYMBOLS = ["$","€","¥","£","₩","₿","¢","₽"];
-function FloatingBg() {
+function FloatingBg({isDayMode}) {
   const items = Array.from({length:14},(_,i)=>({
     id:i, sym:SYMBOLS[i%SYMBOLS.length],
     left:`${(i*7.3+2)%100}%`,
@@ -169,10 +169,21 @@ function FloatingBg() {
     size:`${3+(i*0.4)%4}rem`,
   }));
   return (
-    <div className="bg-layer">
+    <div style={{position:"absolute",inset:0}}>
       {items.map(it=>(
-        <span key={it.id} className="float-symbol"
-          style={{left:it.left,animationDuration:it.duration,animationDelay:it.delay,fontSize:it.size}}>
+        <span key={it.id} style={{
+          position:"absolute",
+          fontSize:it.size,
+          opacity: isDayMode ? 0.09 : 0.04,
+          color: isDayMode ? "#8b5e1a" : "#c9a84c",
+          animation:"floatUp linear infinite",
+          userSelect:"none",
+          pointerEvents:"none",
+          left:it.left,
+          animationDuration:it.duration,
+          animationDelay:it.delay,
+          transition:"opacity 0.8s, color 0.8s",
+        }}>
           {it.sym}
         </span>
       ))}
@@ -189,67 +200,217 @@ export default function App() {
   const [pwInput, setPwInput] = useState("");
   const [pwError, setPwError] = useState(false);
   const [pwShake, setPwShake] = useState(false);
+  // 전역 gameMode 구독 → 배경/테마 전환
+  const [globalMode, setGlobalMode] = useState("waiting");
+  useEffect(()=>onValue(ref(db,"game/mode"),s=>setGlobalMode(s.val()||"waiting")),[]);
+
+  const isDayMode   = globalMode === "day_vote";
+  const isNightMode = globalMode === "night_vote";
 
   const handleTeacherLogin = () => {
     if (pwInput === "1020") { setTeacherUnlocked(true); setPwError(false); }
     else { setPwError(true); setPwShake(true); setTimeout(()=>setPwShake(false),500); }
   };
 
+  // 테마별 CSS 변수
+  const themeStyle = isDayMode ? {
+    "--bg-main"    : "#f5f0e8",
+    "--bg-grad"    : "radial-gradient(ellipse 100% 70% at 50% 0%, #ede4ce 0%, #f5f0e8 55%, #e8e0d0 100%)",
+    "--text-main"  : "#2a1a0a",
+    "--header-bg"  : "rgba(240,232,210,0.94)",
+    "--header-bd"  : "rgba(160,120,60,0.3)",
+    "--tab-student": "linear-gradient(135deg,#8b5e1a,#c89040)",
+    "--tab-teacher": "linear-gradient(135deg,#1a3a6b,#2a60b0)",
+    "--vignette"   : "radial-gradient(ellipse 100% 100% at 50% 50%, transparent 35%, rgba(120,80,20,0.18) 100%)",
+  } : {
+    "--bg-main"    : "#0a0a0f",
+    "--bg-grad"    : "radial-gradient(ellipse 80% 60% at 50% 0%, #1a0505 0%, #0a0a0f 60%)",
+    "--text-main"  : "#e8e0d0",
+    "--header-bg"  : "rgba(8,4,4,0.88)",
+    "--header-bd"  : "rgba(180,60,40,0.2)",
+    "--tab-student": "linear-gradient(135deg,#6b1a1a,#a03030)",
+    "--tab-teacher": "linear-gradient(135deg,#1a1a6b,#3050b0)",
+    "--vignette"   : "radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, rgba(80,0,0,0.45) 100%)",
+  };
+
   return (
     <>
       <GlobalStyle />
-      <FloatingBg />
-      <div className="vignette" />
-      <div style={{position:"relative",zIndex:2,minHeight:"100vh"}}>
+      <style>{`
+        body { background: ${isDayMode?"#f5f0e8":"#0a0a0f"}; color:${isDayMode?"#2a1a0a":"#e8e0d0"}; transition: background 0.8s, color 0.8s; }
+        @keyframes bgTransition { from{opacity:0} to{opacity:1} }
+      `}</style>
+
+      {/* 배경 레이어 */}
+      <div style={{
+        position:"fixed",inset:0,zIndex:0,overflow:"hidden",
+        background: isDayMode
+          ? "radial-gradient(ellipse 100% 70% at 50% 0%, #ede4ce 0%, #f5f0e8 55%, #e8e0d0 100%)"
+          : "radial-gradient(ellipse 80% 60% at 50% 0%, #1a0505 0%, #0a0a0f 60%)",
+        transition:"background 0.8s ease",
+      }}>
+        <FloatingBg isDayMode={isDayMode}/>
+      </div>
+
+      {/* 비네트 */}
+      <div style={{
+        position:"fixed",inset:0,zIndex:1,pointerEvents:"none",
+        background: isDayMode
+          ? "radial-gradient(ellipse 100% 100% at 50% 50%, transparent 35%, rgba(120,80,20,0.15) 100%)"
+          : "radial-gradient(ellipse 100% 100% at 50% 50%, transparent 40%, rgba(80,0,0,0.45) 100%)",
+        transition:"background 0.8s ease",
+      }}/>
+
+      <div style={{position:"relative",zIndex:2,minHeight:"100vh",transition:"color 0.8s"}}>
+
+        {/* 타이틀 배너 — 이미지 참고 스타일 */}
+        <div style={{
+          background: isDayMode
+            ? "linear-gradient(180deg,rgba(200,160,60,0.12) 0%,transparent 100%)"
+            : "linear-gradient(180deg,rgba(30,10,10,0.8) 0%,transparent 100%)",
+          padding:"18px 0 10px",
+          textAlign:"center",
+          position:"relative",
+          overflow:"hidden",
+          transition:"background 0.8s",
+        }}>
+          {/* 흩날리는 지폐 장식 */}
+          <div style={{position:"absolute",inset:0,pointerEvents:"none",overflow:"hidden"}}>
+            {["💴","💵","💶","💷","💴","💵"].map((bill,i)=>(
+              <span key={i} style={{
+                position:"absolute",
+                fontSize:`${1.1+(i%3)*0.4}rem`,
+                opacity: isDayMode ? 0.25 : 0.18,
+                top:`${8+(i*13)%55}%`,
+                left:`${(i*17+5)%90}%`,
+                transform:`rotate(${-30+(i*22)%70}deg)`,
+                filter: isDayMode?"none":"sepia(1) hue-rotate(10deg)",
+                transition:"opacity 0.8s",
+              }}>{bill}</span>
+            ))}
+          </div>
+          {/* 부제 */}
+          <p style={{
+            fontSize:"0.65rem",letterSpacing:"0.18em",fontWeight:600,
+            color: isDayMode ? "rgba(140,90,20,0.75)" : "rgba(200,180,140,0.6)",
+            marginBottom:"6px",textTransform:"uppercase",
+            transition:"color 0.8s",
+          }}>하루하루 달라지는 마피아 첫 뱅킹 이벤트</p>
+          {/* 메인 타이틀 */}
+          <div style={{display:"inline-flex",alignItems:"center",gap:"0",position:"relative"}}>
+            {"마피아 게임".split("").map((ch,i)=>(
+              <span key={i} style={{
+                fontSize: ch===" "?"0.8rem":"2.1rem",
+                fontWeight:900,
+                letterSpacing:"-0.02em",
+                color: isDayMode
+                  ? (i%3===1?"#c0392b":"#2a1a0a")
+                  : (i%3===1?"#e03060":"#f0e8d8"),
+                textShadow: isDayMode
+                  ? "2px 2px 0 rgba(180,120,40,0.2)"
+                  : "2px 2px 0 rgba(0,0,0,0.6), 0 0 20px rgba(200,50,50,0.3)",
+                display:"inline-block",
+                transform:`rotate(${[-2,1,-1,0,2,-1,0,1,-2][i%9]}deg)`,
+                transition:"color 0.8s, text-shadow 0.8s",
+                padding:"0 1px",
+              }}>{ch}</span>
+            ))}
+          </div>
+          {/* 모드 상태 표시 */}
+          {globalMode!=="waiting"&&(
+            <div style={{marginTop:"6px"}}>
+              <span style={{
+                fontSize:"0.68rem",fontWeight:700,letterSpacing:"0.12em",
+                padding:"3px 12px",borderRadius:"99px",
+                background: isDayMode?"rgba(200,140,40,0.15)":"rgba(200,50,50,0.15)",
+                border: isDayMode?"1px solid rgba(180,120,30,0.3)":"1px solid rgba(200,60,60,0.3)",
+                color: isDayMode?"rgba(140,80,10,0.9)":"rgba(220,150,130,0.9)",
+              }}>
+                {isDayMode?"☀ 낮 투표 진행 중":"🌙 밤 투표 진행 중"}
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* 헤더 */}
         <header style={{
           position:"sticky",top:0,zIndex:50,
-          background:"rgba(8,4,4,0.88)",
-          borderBottom:"1px solid rgba(180,60,40,0.2)",
+          background: isDayMode?"rgba(240,232,210,0.95)":"rgba(8,4,4,0.88)",
+          borderBottom: isDayMode?"1px solid rgba(160,120,60,0.3)":"1px solid rgba(180,60,40,0.2)",
           backdropFilter:"blur(16px)",
           padding:"0 16px",
           display:"flex",alignItems:"center",justifyContent:"space-between",
-          height:"56px",
+          height:"52px",
+          transition:"background 0.8s, border-color 0.8s",
         }}>
           <div className="scanline"/>
           <div style={{display:"flex",alignItems:"center",gap:"10px",zIndex:1}}>
             <span style={{fontSize:"1.3rem"}}>🏦</span>
-            <span style={{fontWeight:900,fontSize:"1.05rem",letterSpacing:"0.06em",color:"#e8d8c0"}}>외환 마피아</span>
-            <span style={{fontSize:"0.6rem",letterSpacing:"0.15em",color:"rgba(180,80,60,0.7)",fontWeight:700,textTransform:"uppercase"}}>게임</span>
+            <span style={{fontWeight:900,fontSize:"1.05rem",letterSpacing:"0.06em",
+              color:isDayMode?"#3a2010":"#e8d8c0",transition:"color 0.8s"}}>외환 마피아</span>
+            <span style={{fontSize:"0.6rem",letterSpacing:"0.15em",
+              color:isDayMode?"rgba(160,100,30,0.8)":"rgba(180,80,60,0.7)",
+              fontWeight:700,textTransform:"uppercase",transition:"color 0.8s"}}>게임</span>
           </div>
           <div style={{display:"flex",gap:"6px",zIndex:1}}>
             <button onClick={()=>setTab("student")} className="btn" style={{
-              padding:"7px 16px",fontSize:"0.82rem",
+              padding:"7px 14px",fontSize:"0.82rem",
               ...(tab==="student"
-                ?{background:"linear-gradient(135deg,#6b1a1a,#a03030)",color:"#ffd8c8",border:"1px solid rgba(220,100,80,0.4)"}
-                :{background:"transparent",color:"rgba(200,180,170,0.6)",border:"1px solid rgba(180,80,60,0.15)"}),
+                ?{background:isDayMode?"linear-gradient(135deg,#8b5e1a,#c89040)":"linear-gradient(135deg,#6b1a1a,#a03030)",
+                  color:isDayMode?"#fff8e8":"#ffd8c8",border:`1px solid ${isDayMode?"rgba(200,150,50,0.5)":"rgba(220,100,80,0.4)"}`}
+                :{background:"transparent",
+                  color:isDayMode?"rgba(120,80,30,0.7)":"rgba(200,180,170,0.6)",
+                  border:`1px solid ${isDayMode?"rgba(160,110,40,0.2)":"rgba(180,80,60,0.15)"}`}),
             }}>학생 화면</button>
             <button onClick={()=>setTab("teacher")} className="btn" style={{
-              padding:"7px 16px",fontSize:"0.82rem",
+              padding:"7px 14px",fontSize:"0.82rem",
               ...(tab==="teacher"
-                ?{background:"linear-gradient(135deg,#1a1a6b,#3050b0)",color:"#c8d8ff",border:"1px solid rgba(80,120,255,0.4)"}
-                :{background:"transparent",color:"rgba(180,190,220,0.6)",border:"1px solid rgba(80,120,200,0.15)"}),
+                ?{background:"linear-gradient(135deg,#1a3a6b,#2a60b0)",color:"#c8d8ff",border:"1px solid rgba(80,140,255,0.4)"}
+                :{background:"transparent",
+                  color:isDayMode?"rgba(40,80,160,0.7)":"rgba(180,190,220,0.6)",
+                  border:`1px solid ${isDayMode?"rgba(60,100,200,0.2)":"rgba(80,120,200,0.15)"}`}),
             }}>교사 화면</button>
           </div>
         </header>
 
-        <main style={{maxWidth:"640px",margin:"0 auto",padding:"16px 16px 48px"}}>
-          {tab==="student" ? <StudentView /> : teacherUnlocked ? <TeacherView /> : (
-            <div style={{marginTop:"80px",display:"flex",justifyContent:"center"}}>
-              <div className="pw-box" style={{animation:pwShake?"shake 0.4s ease":"none"}}>
+        <main style={{maxWidth:"640px",margin:"0 auto",padding:"16px 16px 24px"}}>
+          {tab==="student" ? <StudentView isDayMode={isDayMode} isNightMode={isNightMode}/> : teacherUnlocked ? <TeacherView /> : (
+            <div style={{marginTop:"60px",display:"flex",justifyContent:"center"}}>
+              <div className="pw-box" style={{
+                animation:pwShake?"shake 0.4s ease":"none",
+                background: isDayMode?"rgba(245,235,210,0.95)":"rgba(10,5,5,0.85)",
+                border: isDayMode?"1px solid rgba(180,130,60,0.4)":"1px solid rgba(180,80,60,0.3)",
+              }}>
                 <div style={{fontSize:"2.8rem",marginBottom:"16px"}}>🔐</div>
-                <p style={{fontWeight:900,fontSize:"1.2rem",color:"#e8d8c0",marginBottom:"4px"}}>교사 전용 구역</p>
-                <p style={{fontSize:"0.8rem",color:"rgba(180,150,130,0.6)",marginBottom:"24px",letterSpacing:"0.05em"}}>승인된 교사만 접근 가능합니다</p>
+                <p style={{fontWeight:900,fontSize:"1.2rem",color:isDayMode?"#2a1a0a":"#e8d8c0",marginBottom:"4px"}}>교사 전용 구역</p>
+                <p style={{fontSize:"0.8rem",color:isDayMode?"rgba(120,80,30,0.7)":"rgba(180,150,130,0.6)",marginBottom:"24px",letterSpacing:"0.05em"}}>승인된 교사만 접근 가능합니다</p>
                 <input type="password" value={pwInput} onChange={e=>setPwInput(e.target.value)}
                   onKeyDown={e=>e.key==="Enter"&&handleTeacherLogin()}
                   placeholder="비밀번호 입력" className="inp"
-                  style={{textAlign:"center",fontSize:"1.1rem",letterSpacing:"0.3em",marginBottom:"10px"}}/>
+                  style={{textAlign:"center",fontSize:"1.1rem",letterSpacing:"0.3em",marginBottom:"10px",
+                    background:isDayMode?"rgba(255,248,235,0.8)":"rgba(0,0,0,0.45)",
+                    borderColor:isDayMode?"rgba(180,130,60,0.4)":"rgba(180,80,60,0.3)",
+                    color:isDayMode?"#2a1a0a":"#e8e0d0",
+                  }}/>
                 {pwError&&<p style={{color:"#e05050",fontSize:"0.78rem",marginBottom:"10px"}}>✕ 비밀번호가 올바르지 않습니다</p>}
                 <button onClick={handleTeacherLogin} className="btn btn-blue" style={{width:"100%",padding:"12px",fontSize:"0.9rem",marginTop:"4px"}}>입장</button>
               </div>
             </div>
           )}
         </main>
+
+        {/* Copyright 푸터 */}
+        <footer style={{
+          textAlign:"center",padding:"20px 16px 32px",
+          borderTop: isDayMode?"1px solid rgba(160,120,60,0.15)":"1px solid rgba(180,80,60,0.1)",
+          transition:"border-color 0.8s",
+        }}>
+          <p style={{
+            fontSize:"0.75rem",fontWeight:600,letterSpacing:"0.08em",
+            color: isDayMode?"rgba(120,80,30,0.55)":"rgba(180,150,120,0.45)",
+            transition:"color 0.8s",
+          }}>© 이한상T  ·  외환 마피아 게임</p>
+        </footer>
       </div>
     </>
   );
@@ -334,7 +495,7 @@ function ExchangeRateBar({ rate, compact }) {
 // ════════════════════════════════════════════════════════════
 // 학생 화면
 // ════════════════════════════════════════════════════════════
-function StudentView() {
+function StudentView({isDayMode, isNightMode}) {
   const [playerName, setPlayerName] = useState("");
   const [nameInput,  setNameInput]  = useState("");
   const [playerId,   setPlayerId]   = useState("");
@@ -462,19 +623,31 @@ function StudentView() {
     );
   };
 
+  // 낮 테마용 카드 스타일
+  const cardDay = isDayMode ? {
+    background:"rgba(255,250,238,0.88)",
+    border:"1px solid rgba(180,130,50,0.25)",
+  } : {};
+  const cardDayGold = isDayMode ? {
+    background:"rgba(255,248,220,0.9)",
+    border:"1px solid rgba(180,140,40,0.35)",
+  } : {};
+  const textDay  = isDayMode ? {color:"#2a1a0a"} : {};
+  const subDay   = isDayMode ? {color:"rgba(100,60,10,0.65)"} : {};
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:"14px",paddingTop:"8px"}}>
       <ModeBanner mode={gameMode}/>
       <TimerBlock/>
 
       {/* 실시간 환율 */}
-      <div className="glass-gold" style={{padding:"18px 20px"}}>
+      <div className="glass-gold" style={{padding:"18px 20px",...cardDayGold}}>
         <div className="section-title section-title-gold"><span>실시간 환율</span></div>
         <ExchangeRateBar rate={exchangeRate}/>
       </div>
 
       {/* 신원 등록 */}
-      <div className="glass" style={{padding:"18px 20px"}}>
+      <div className="glass" style={{padding:"18px 20px",...cardDay}}>
         <div className="section-title"><span>01</span> 신원 등록</div>
         {playerName?(
           <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
@@ -500,7 +673,7 @@ function StudentView() {
       </div>
 
       {/* 정책 결정 투표 - ✅ 낮 투표에서만 */}
-      <div className="glass" style={{padding:"18px 20px"}}>
+      <div className="glass" style={{padding:"18px 20px",...cardDay}}>
         <div className="section-title"><span>02</span> 정책 결정 투표</div>
         {!playerName?(<Locked msg="먼저 신원을 등록하세요"/>)
         : gameMode==="night_vote"?(<Standby msg="밤 투표 시간입니다. 정책 결정 투표를 진행하지 않습니다."/>)
@@ -525,7 +698,7 @@ function StudentView() {
       </div>
 
       {/* 외환투기꾼 색출 — 낮 투표에서만, 라운드당 1회 */}
-      <div className="glass" style={{padding:"18px 20px"}}>
+      <div className="glass" style={{padding:"18px 20px",...cardDay}}>
         <div className="section-title"><span>03</span> 외환투기꾼 색출</div>
         {!playerName?(<Locked msg="먼저 신원을 등록하세요"/>)
         : gameMode==="night_vote"?(<Standby msg="밤 투표 시간입니다. 외환투기꾼 색출은 낮에 진행합니다."/>)
